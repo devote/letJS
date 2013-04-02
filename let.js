@@ -99,7 +99,7 @@
         // поэтому делегировать будем на корневом элементе HTMLHtmlElement
     })(document.documentElement, [
         // события которые мы будем слушать и обрабатывать
-        'keypress', 'keydown', 'paste', 'cut',
+        'keypress', 'keydown', 'paste', 'cut', 'mousedown', 'mouseup',
         'dragstart', 'dragenter', 'dragover', 'drop'
     ], function(e) {
         var
@@ -132,17 +132,21 @@
         switch(type) {
             case 'paste':
                 // обработка события вставки текста из буфера обмена
-                var clipboardData = e.clipboardData || window.clipboardData || '';
+                var clipboardData = e.clipboardData || window.clipboardData || False;
                 insertValue = clipboardData && clipboardData.getData('Text');
             case 'cut':
                 // если получили событие вырезать,
                 // ничего не делаем все произойдет само.
                 break;
+            case 'mousedown':
+            case 'mouseup':
+                // тут обрабатываем клик мыши, для контроля позиции каретки
+                which = 33;
             case 'keydown':
                 // обработка спецклавиш
-                which = which === 46 ? -1 : which === 8 ? 8 : 0;
+                which = which === 46 ? -1 : which === 8 ? 8 : which > 32 && which < 41 ? -2 : 0;
             case 'keypress':
-                if (which === 0 || e.ctrlKey || e.altKey) {
+                if (which === 0 || (e.ctrlKey && which > 0) || e.altKey) {
                     // ничего существенного не нажато
                     return;
                 } else if (which === 8) {
@@ -151,7 +155,7 @@
                 } else if (which === -1) {
                     // обработка клавиши удаления, правого символа от текущей позиции курсора
                     cropEnd += cropStart == cropEnd && cropEnd < value.length ? 1 : 0;
-                } else {
+                } else if (which > 0) {
                     // обработка вставки нажатой символьной клавиши
                     insertValue = String.fromCharCode(which);
                 }
@@ -173,7 +177,9 @@
 
         for(attr in letAttributes) {
             if (insertValue === False || (Object.prototype.hasOwnProperty.call(letAttributes, attr) &&
+                (which === -2 && letAttributes[attr].length > 1 || which !== -2) &&
                 (m = target.getAttribute(attr)) !== Null && letAttributes[attr].call(target, {
+                'originalEvent': e,
                 'type': type,
                 'attr': attr,
                 'rule': m,
@@ -185,12 +191,12 @@
                 // предположительный текст, который будет отображен в поле ввода
                 'expectedValue': value.substr(0, cropStart < insertStart ? cropStart : insertStart)
                     + insertValue + value.substring(cropEnd > insertEnd ? cropEnd : insertEnd),
-                'regExp': (m = /^\/(.*)\/(?:([igm]+))?$/.exec(m)) && new RegExp(m[1], m[2]) || Null,
+                'regExp': (m = /^\/(.*)\/(?:([igm]+))?$/.exec(m)) && new RegExp(m[1], m[2]),
                 'insertStart': insertStart,
                 'insertEnd': insertEnd,
                 'cropStart': cropStart,
                 'cropEnd': cropEnd
-            }) === False)) {
+            }, which === -2) === False)) {
                 // запрещаем ввод и отменяем действия по умолсанию
                 if (e.preventDefault) {
                     e.preventDefault();
