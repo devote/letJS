@@ -60,7 +60,7 @@
 
     function rulesHandler(rules) {
         // стандартные обработчики атрибутов
-        return rules['attr'] === 'data-let-input' ? !rules['insertValue'] || (rules['regExp']
+        return rules['attr'] === 'data-let-input' ? rules['insertValue'] === '' || (rules['regExp']
             || new RegExp("^[" + rules['rule'] + "]+$", "g")).test(rules['insertValue'])
             : rules['attr'] === 'data-let-template' ? (rules['regExp']
             || new RegExp("(" + rules['rule'] + ")", "g")).test(rules['expectedValue'])
