@@ -1,7 +1,7 @@
 /**
- * letJS library 0.2
+ * letJS library 0.3
  *
- * @version 0.2
+ * @version 0.3
  * @author Copyright 2012-2013, <a href="mailto:spb.piksel@gmail.com">Dmitrii Pakhtinov</a>
  * date 03/30/2012
  */
@@ -109,7 +109,8 @@
             m, attr;
 
         // нам нужны только элементы textarea и input
-        if (!target || !(target.nodeName in {'INPUT': 1, 'TEXTAREA': 1})) {
+        if (!target || !(target.nodeName in {'INPUT': 1, 'TEXTAREA': 1})
+            || (target.type in {'radio': 1, 'checkbox': 1})) {
             // если что-то другое, то выходим отсюда
             return;
         }
