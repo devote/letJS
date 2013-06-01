@@ -1,24 +1,27 @@
 /**
- * letJS library 0.3
+ * letJS library 0.4
  *
- * @version 0.3
+ * @version 0.4
  * @author Copyright 2012-2013, <a href="mailto:spb.piksel@gmail.com">Dmitrii Pakhtinov</a>
  * date 03/30/2012
  */
 (function(window, False, Null) {
     var
         document = window.document,
+        documentElement = document.documentElement,
         input = document.createElement('input'),
         hasInputSelection = 'selectionStart' in input,
         hasCreateTextRange = 'createTextRange' in input,
+        letAttributes = window['letJS'] = window['letJS'] || {},
+        standardAttr = ['data-let-input', 'data-let-template', 'data-let-length'],
         bookmarkKey = '__rangeBookmark';
 
     /**
-     * Получение или установка границ выделения
+     * Getting or setting boundaries selection text
      *
-     * @param [start]   Задает стартовое значение границы выделения
-     * @param [end]     Задает конечно значение границы выделения
-     * @return {Array}  Возвращает массив текущих координат [Start, End]
+     * @param {int} [start] Sets the initial value of the text selection
+     * @param {int} [end] Sets the final value of the text selection
+     * @return {Array} Returns an array of the current position [Start, End]
      */
     function selection(start, end) {
         var
@@ -39,7 +42,10 @@
             if (range.parentElement() === target) {
                 target[bookmarkKey] = range.getBookmark();
             }
-            range = target.createTextRange();
+            try {
+                // IE throws an exception if the element has removed from the DOM
+                range = target.createTextRange();
+            } catch(_e_) {}
             if (!hasResult) {
                 range.collapse(true);
                 range.moveEnd('character', end);
@@ -58,8 +64,14 @@
         return [start, end];
     }
 
+    /**
+     * Handler built in library attributes
+     *
+     * @param {Object} rules
+     * @returns {boolean}
+     */
     function rulesHandler(rules) {
-        // стандартные обработчики атрибутов
+        // standard attribute handlers
         return rules['attr'] === 'data-let-input' ? rules['insertValue'] === '' || (rules['regExp']
             || new RegExp("^[" + rules['rule'] + "]+$", "g")).test(rules['insertValue'])
             : rules['attr'] === 'data-let-template' ? (rules['regExp']
@@ -67,40 +79,42 @@
             : !+rules['rule'] || rules['expectedValue'].length <= +rules['rule'];
     }
 
-    // если библиотеку уже инициализировали
-    if ('letJS' in window) {
-        // то и делать тут нечего
+    // if the library is already initialized
+    if (documentElement['letJSLoaded']) {
         return;
     }
-
-    var letAttributes = window['letJS'] = {
-        "data-let-input": rulesHandler,
-        "data-let-template": rulesHandler,
-        "data-let-length": rulesHandler
-    };
 
     /**
      * Entry Point
      */
     (function(elem, types, handler) {
-        // вешаем обработчик на все типы событий в массиве types
+        // add handlers for the standard attributes
+        for(var index = 0; index < standardAttr.length; index++) {
+            if (!letAttributes.hasOwnProperty(standardAttr[index])) {
+                letAttributes[standardAttr[index]] = rulesHandler;
+            }
+        }
+        // flag
+        elem['letJSLoaded'] = true;
+        // hang up the event handler for all types of events in the types array
         for(var i = 0; i < types.length; i++) {
             if (elem.addEventListener) {
-                // для хороших браузеров
-                elem.addEventListener(types[i], handler, False);
+                // for good browsers
+                elem.addEventListener(types[i], handler, true);
             } else if (elem.attachEvent) {
-                // для Боже упаси! Такой браузер =)
-                elem.attachEvent('on' + types[i], function(e) {
+                // for God forbid! This browser =)
+                var type = {'focus': 'focusin', 'blur': 'focusout'};
+                elem.attachEvent('on' + (type[types[i]] || types[i]), function(e) {
                     handler.call(elem, window.event);
                 });
             }
         }
-        // Internet Explorer некоторые события не ловит на HTMLDocument
-        // поэтому делегировать будем на корневом элементе HTMLHtmlElement
-    })(document.documentElement, [
-        // события которые мы будем слушать и обрабатывать
+        // Internet Explorer does not catch some of the events on the HTMLDocument,
+        // so the delegated will be on the root element HTMLHtmlElement
+    })(documentElement, [
+        // events that we will listen and process
         'keypress', 'keydown', 'paste', 'cut', 'mousedown', 'mouseup',
-        'dragstart', 'dragenter', 'dragover', 'drop'
+        'dragstart', 'dragenter', 'dragover', 'drop', 'focus', 'blur'
     ], function(e) {
         var
             type = e.type,
@@ -108,17 +122,17 @@
             insertValue = '',
             m, attr;
 
-        // нам нужны только элементы textarea и input
+        // we only need the input and textarea elements
         if (!target || !(target.nodeName in {'INPUT': 1, 'TEXTAREA': 1})
             || (target.type in {'radio': 1, 'checkbox': 1})) {
-            // если что-то другое, то выходим отсюда
+            // If something else, then go out from here
             return;
         }
 
-        // в старых ИЕ нет свойства which
+        // in old IE there is no property which
         var which = e.which == Null ? e.charCode != Null ? e.charCode : e.keyCode : e.which;
 
-        // получаем текущие границы выделения
+        // get the current text selection range
         var
             position = selection.call({'target': target}),
             insertStart = position[0],
@@ -126,38 +140,41 @@
             cropStart = insertStart,
             cropEnd = insertEnd;
 
-        // получаем текущее значение поля
+        // get the current value of the field
         var value = 'value' in target ? target.value : '';
 
-        // ищем обработчик текущего типа события
+        // looking for this type of event handler
         switch(type) {
             case 'paste':
-                // обработка события вставки текста из буфера обмена
+                // event handling paste text from the clipboard
                 var clipboardData = e.clipboardData || window.clipboardData || False;
                 insertValue = clipboardData && clipboardData.getData('Text');
             case 'cut':
-                // если получили событие вырезать,
-                // ничего не делаем все произойдет само.
+                // if the event got cut, do not do anything it will all happen by itself.
                 break;
+            case 'focusin':
+            case 'focusout':
+                type = type === 'focusin' ? 'focus' : 'blur';
+            case 'focus':
+            case 'blur':
             case 'mousedown':
             case 'mouseup':
-                // тут обрабатываем клик мыши, для контроля позиции каретки
                 which = 33;
             case 'keydown':
-                // обработка спецклавиш
+                // processing dedicated buttons
                 which = which === 46 ? -1 : which === 8 ? 8 : which > 32 && which < 41 ? -2 : 0;
             case 'keypress':
                 if (which === 0 || (e.ctrlKey && which > 0) || e.altKey) {
-                    // ничего существенного не нажато
+                    // nothing significant has pressed
                     return;
                 } else if (which === 8) {
-                    // обработка клавиши удаления, левого символа от текущей позиции курсора
+                    // processing the delete key, the left character on the current cursor position
                     cropStart -= cropStart == cropEnd && cropStart > 0 ? 1 : 0;
                 } else if (which === -1) {
-                    // обработка клавиши удаления, правого символа от текущей позиции курсора
+                    // processing the delete key, right character from the current cursor position
                     cropEnd += cropStart == cropEnd && cropEnd < value.length ? 1 : 0;
                 } else if (which > 0) {
-                    // обработка вставки нажатой символьной клавиши
+                    // processing pressing the symbol
                     insertValue = String.fromCharCode(which);
                 }
                 break;
@@ -165,11 +182,10 @@
             case 'dragenter':
             case 'dragover':
             case 'drop':
-                // тут обрабатываем события связанные с drag&drop
-                // к сожалению не все браузеры работают с ним хорошо
-                // поэтому пока ставим заглушку, до тех пор, пока
-                // FireFox, Chrome, Safari не реализуют нормальную
-                // поддержку этой технологии.
+                // then process the events associated with the drag'n'drop,
+                // unfortunately, not all browsers work with it well so long
+                // as we put the cap as long as FireFox, Chrome, Safari do not
+                // implement proper support for this technology.
                 insertValue = False;
                 break;
             default:
@@ -189,7 +205,7 @@
                 'value': value,
                 'insertValue': insertValue,
                 'cropValue': value.substring(cropStart, cropEnd) || '',
-                // предположительный текст, который будет отображен в поле ввода
+                // presumptive text that will be displayed in the input field
                 'expectedValue': value.substr(0, cropStart < insertStart ? cropStart : insertStart)
                     + insertValue + value.substring(cropEnd > insertEnd ? cropEnd : insertEnd),
                 'regExp': (m = /^\/(.*)\/(?:([igm]+))?$/.exec(m)) && new RegExp(m[1], m[2]),
@@ -198,7 +214,7 @@
                 'cropStart': cropStart,
                 'cropEnd': cropEnd
             }, which === -2) === False)) {
-                // запрещаем ввод и отменяем действия по умолсанию
+                // cancel the insertion of the text and to cancel the default action
                 if (e.preventDefault) {
                     e.preventDefault();
                 } else {
