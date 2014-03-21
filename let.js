@@ -1,9 +1,9 @@
 /**
- * letJS library 0.4
+ * letJS library 0.5
  *
- * @version 0.4
+ * @version 0.5
  * @author Copyright 2012-2013, <a href="mailto:spb.piksel@gmail.com">Dmitrii Pakhtinov</a>
- * date 03/30/2012
+ * Created 03/30/2012
  */
 (function(window, False, Null) {
     var
@@ -12,7 +12,7 @@
         input = document.createElement('input'),
         hasInputSelection = 'selectionStart' in input,
         hasCreateTextRange = 'createTextRange' in input,
-        letAttributes = window['letJS'] = window['letJS'] || {},
+        letJS = window['letJS'] = window['letJS'] || {'_attrs': {}},
         standardAttr = ['data-let-input', 'data-let-template', 'data-let-length'],
         bookmarkKey = '__rangeBookmark';
 
@@ -64,38 +64,39 @@
         return [start, end];
     }
 
-    /**
-     * Handler built in library attributes
-     *
-     * @param {Object} rules
-     * @returns {boolean}
-     */
-    function rulesHandler(rules) {
-        // standard attribute handlers
-        return rules['attr'] === 'data-let-input' ? rules['insertValue'] === '' || (rules['regExp']
-            || new RegExp("^[" + rules['rule'] + "]+$", "g")).test(rules['insertValue'])
-            : rules['attr'] === 'data-let-template' ? (rules['regExp']
-            || new RegExp("(" + rules['rule'] + ")", "g")).test(rules['expectedValue'])
-            : !+rules['rule'] || rules['expectedValue'].length <= +rules['rule'];
-    }
-
     // if the library is already initialized
-    if (documentElement['letJSLoaded']) {
+    if (letJS['setHandler']) {
         return;
     }
+
+    /**
+     * Add handler for the attributes
+     *
+     * @param {String|String[]} attributes
+     * @param {Function} handler
+     */
+    letJS['setHandler'] = function(attributes, handler) {
+        attributes = typeof attributes === 'string' ? [attributes] : attributes;
+        for(var index = 0; index < attributes.length; index++) {
+            if ((letJS['_attrs'][attributes[index]] = handler) === Null) {
+                delete letJS['_attrs'][attributes[index]];
+            }
+        }
+    };
 
     /**
      * Entry Point
      */
     (function(elem, types, handler) {
         // add handlers for the standard attributes
-        for(var index = 0; index < standardAttr.length; index++) {
-            if (!letAttributes.hasOwnProperty(standardAttr[index])) {
-                letAttributes[standardAttr[index]] = rulesHandler;
-            }
-        }
-        // flag
-        elem['letJSLoaded'] = true;
+        letJS['setHandler'](standardAttr, function(rules) {
+            // standard attribute handlers
+            return rules['attr'] === 'data-let-input' ? rules['insertValue'] === '' || (rules['regExp']
+                || new RegExp("^[" + rules['rule'] + "]+$", "g")).test(rules['insertValue'])
+                : rules['attr'] === 'data-let-template' ? (rules['regExp']
+                || new RegExp("(" + rules['rule'] + ")", "g")).test(rules['expectedValue'])
+                : !+rules['rule'] || rules['expectedValue'].length <= +rules['rule'];
+        });
         // hang up the event handler for all types of events in the types array
         for(var i = 0; i < types.length; i++) {
             if (elem.addEventListener) {
@@ -192,10 +193,10 @@
                 return;
         }
 
-        for(attr in letAttributes) {
-            if (insertValue === False || (Object.prototype.hasOwnProperty.call(letAttributes, attr) &&
-                (which === -2 && letAttributes[attr].length > 1 || which !== -2) &&
-                (m = target.getAttribute(attr)) !== Null && letAttributes[attr].call(target, {
+        for(attr in letJS['_attrs']) {
+            if (insertValue === False || (Object.prototype.hasOwnProperty.call(letJS['_attrs'], attr) &&
+                (which === -2 && letJS['_attrs'][attr].length > 1 || which !== -2) &&
+                (m = target.getAttribute(attr)) !== Null && letJS['_attrs'][attr].call(target, {
                 'originalEvent': e,
                 'type': type,
                 'attr': attr,
